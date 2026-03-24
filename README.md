@@ -27,6 +27,7 @@ ClickCommander is a **powerful Python-based automation tool** that captures and 
 - ⚡ **Lightning Fast** — Replays at your exact speed
 - 🔒 **100% Local** — Your data never leaves your machine
 - 🎮 **Full Control** — Pause, resume, and loop with ease
+- 💾 **Save & Reuse** — Build a library of automation workflows
 
 ---
 
@@ -65,11 +66,31 @@ ClickCommander is a **powerful Python-based automation tool** that captures and 
 </td>
 <td width="50%">
 
+### 💾 Recording Management
+- **Multiple Recordings** — Save unlimited automations
+- **CSV Storage** — Portable & editable format
+- **Quick Load** — Reuse recordings anytime
+- **Live Recording** — Record new during playback
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
 ### ⚡ Performance
 - **Zero Lag** — Instant response time
 - **Minimal Overhead** — Lightweight recording
 - **Exact Replay** — Timing preserved perfectly
 - **No Failsafe** — Uninterrupted automation
+
+</td>
+<td width="50%">
+
+### 🔒 Privacy & Control
+- **100% Local** — Data never leaves your machine
+- **No Cloud** — Everything stored locally
+- **Full Control** — Edit CSV files manually
+- **Portable** — Share recordings easily
 
 </td>
 </tr>
@@ -144,10 +165,17 @@ pip install -r requirements.txt
    python auto_clicker.py
    ```
 
-3. **Configure your automation**:
+3. **Choose your workflow**:
    ```
-   How many times should the auto clicker run? 10
-   Gap between consecutive runs (seconds)? 2
+   📂 Existing recordings found:
+     1. login_automation
+     2. data_entry_task
+   
+   [Options]
+     1. Load existing recording
+     2. Create new recording
+   
+   Your choice (1/2): _
    ```
 
 ### Hotkey Controls
@@ -164,7 +192,7 @@ pip install -r requirements.txt
 <tr>
 <td><code>Ctrl + Alt + R</code></td>
 <td><strong>Stop Recording</strong></td>
-<td>Saves your recorded actions and prepares for playback</td>
+<td>Saves your recorded actions to CSV file</td>
 </tr>
 <tr>
 <td><code>Ctrl + Alt + P</code></td>
@@ -176,6 +204,11 @@ pip install -r requirements.txt
 <td><strong>Pause</strong></td>
 <td>Pauses playback (press again to resume)</td>
 </tr>
+<tr>
+<td><code>Ctrl + Alt + R</code></td>
+<td><strong>Record During Playback</strong></td>
+<td>Create new recording or overwrite current one</td>
+</tr>
 </tbody>
 </table>
 
@@ -183,20 +216,30 @@ pip install -r requirements.txt
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. START SCRIPT → Recording begins automatically          │
-│  2. PERFORM ACTIONS → Move, click, type, drag, scroll      │
-│  3. PRESS Ctrl+Alt+R → Stop and save recording             │
-│  4. PRESS Ctrl+Alt+P → Start playback                      │
-│  5. PRESS Ctrl+Alt+P → Pause (optional)                    │
-│  6. PRESS Ctrl+Alt+P → Resume (optional)                   │
+│  1. START SCRIPT → Choose existing or create new           │
+│  2. ENTER NAME → Give your recording a memorable name      │
+│  3. PERFORM ACTIONS → Move, click, type, drag, scroll      │
+│  4. PRESS Ctrl+Alt+R → Auto-saves to CSV file              │
+│  5. CONFIGURE → Set runs & gap between repetitions         │
+│  6. PRESS Ctrl+Alt+P → Start playback                      │
+│  7. PRESS Ctrl+Alt+P → Pause/Resume (optional)             │
+│  8. PRESS Ctrl+Alt+R → Record new during playback          │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### 💡 Pro Tips
+
+- **Organize Your Recordings** — Use descriptive names like `login_flow`, `data_entry_task`, `test_scenario_1`
+- **Reuse Recordings** — Load any saved recording instantly without re-recording
+- **Edit Manually** — CSV files can be edited in Excel or any text editor for fine-tuning
+- **Share Workflows** — Send CSV files to teammates to share automation workflows
+- **Quick Iterations** — Press `Ctrl+Alt+R` during playback to quickly record variations
 
 ---
 
 ## 🛠️ What Gets Recorded?
 
-ClickCommander captures **everything** with perfect timing:
+ClickCommander captures **everything** with perfect timing and saves it to portable CSV files:
 
 | Action | Captured | Details |
 |--------|----------|----------|
@@ -207,6 +250,28 @@ ClickCommander captures **everything** with perfect timing:
 | ⌨️ **Typing** | ✅ | All characters and symbols |
 | 🔑 **Special Keys** | ✅ | Enter, Tab, Shift, Ctrl, Alt, etc. |
 | ⏱️ **Timing** | ✅ | Precise delays between all events |
+| 💾 **Storage** | ✅ | Auto-saved as CSV in `recordings/` folder |
+
+### 📂 Recording Files
+
+All recordings are saved in the `recordings/` folder:
+
+```
+ClickCommander/
+├── recordings/
+│   ├── login_automation.csv      ← Your login workflow
+│   ├── data_entry_task.csv       ← Repetitive data entry
+│   ├── test_scenario_1.csv       ← Testing automation
+│   └── game_macro.csv            ← Gaming macro
+├── auto_clicker.py
+└── requirements.txt
+```
+
+**CSV Format Benefits:**
+- 📝 **Human-Readable** — Open in Excel or any text editor
+- ✏️ **Editable** — Manually adjust timing or coordinates
+- 📤 **Portable** — Share with teammates or across machines
+- 🔄 **Version Control** — Track changes with Git
 
 ---
 
@@ -217,19 +282,19 @@ ClickCommander captures **everything** with perfect timing:
 <td width="33%" align="center">
 
 ### 🧪 Software Testing
-Automate repetitive test scenarios and regression testing
+Automate repetitive test scenarios and regression testing. Save different test cases as separate recordings.
 
 </td>
 <td width="33%" align="center">
 
 ### 📊 Data Entry
-Speed up form filling and data input tasks
+Speed up form filling and data input tasks. Create recordings for different form types.
 
 </td>
 <td width="33%" align="center">
 
 ### 🎮 Gaming
-Create macros for repetitive in-game actions
+Create macros for repetitive in-game actions. Save different strategies as recordings.
 
 </td>
 </tr>
@@ -237,31 +302,78 @@ Create macros for repetitive in-game actions
 <td width="33%" align="center">
 
 ### 🖼️ Design Work
-Automate repetitive design and editing tasks
+Automate repetitive design and editing tasks. Build a library of common workflows.
 
 </td>
 <td width="33%" align="center">
 
 ### 📝 Documentation
-Record workflows for tutorials and guides
+Record workflows for tutorials and guides. Share CSV files with your team.
 
 </td>
 <td width="33%" align="center">
 
 ### 🔄 Batch Processing
-Process multiple files with identical steps
+Process multiple files with identical steps. Load the same recording repeatedly.
 
 </td>
 </tr>
 </table>
 
+### 🌟 Real-World Examples
+
+```bash
+# Example 1: Daily Login Automation
+recordings/morning_login.csv
+→ Opens apps, enters credentials, navigates to dashboard
+
+# Example 2: Data Migration
+recordings/copy_paste_workflow.csv
+→ Copies data from one system, pastes to another
+
+# Example 3: Testing Suite
+recordings/test_login.csv
+recordings/test_checkout.csv
+recordings/test_search.csv
+→ Complete test automation library
+
+# Example 4: Content Creation
+recordings/video_export_preset.csv
+→ Applies same export settings to multiple videos
+```
+
 ---
 
 ## ⚙️ Configuration
 
+### Managing Multiple Recordings
+
+ClickCommander supports unlimited recordings! When you start the script:
+
+**If recordings exist:**
+```
+📂 Existing recordings found:
+  1. login_automation
+  2. data_entry_task
+  3. test_scenario_1
+
+[Options]
+  1. Load existing recording
+  2. Create new recording
+
+Your choice (1/2): _
+```
+
+**Creating new recordings:**
+```
+Enter name for new recording: my_awesome_automation
+```
+
+💡 **Tip:** Use descriptive names! They're saved as `my_awesome_automation.csv`
+
 ### Adjusting Playback Settings
 
-When you start the script, you can configure:
+When you start playback, configure:
 
 - **Number of runs** — How many times to repeat (1 to unlimited)
 - **Gap between runs** — Delay in seconds between each repetition
@@ -282,6 +394,22 @@ Runs: 999999
 Gap: 1
 ```
 
+### Recording During Playback
+
+Need to create a variation? Press `Ctrl+Alt+R` during playback:
+
+```
+[Options]
+  1. Record new (keep current)
+  2. Overwrite current recording
+
+Your choice (1/2): _
+```
+
+After recording, choose:
+- Continue with old playback
+- Start fresh with new recording
+
 ---
 
 ## ⚠️ Important Notes
@@ -293,12 +421,12 @@ Gap: 1
 - ✅ **Stable Environment** — Ensure windows/apps are in the same position
 - ✅ **Test First** — Always test with 1 run before setting high repeat counts
 
-### Safety Features
+### Safety & Persistence
 
 - 🔴 **Failsafe Disabled** — Moving mouse to corner won't stop the script
-- 🎮 **Use Hotkeys** — Always use `Ctrl+Alt+P` to pause/stop playback
+- 🎮 **Use Hotkeys** — `Ctrl+Alt+P` to pause/resume playback, `Ctrl+Alt+R` to stop recording
 - ⚡ **Exact Speed** — Playback matches your recording speed perfectly
-- 💾 **No File Saving** — Recordings are stored in memory (restart to clear)
+- 💾 **Persistent Recordings** — All recordings auto-save as CSV files in the `recordings/` folder. Recordings persist between sessions and are portable/editable.
 
 ### Troubleshooting
 

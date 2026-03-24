@@ -49,8 +49,8 @@ htmlcov/
 .tox/
 
 # Recordings (optional - uncomment if you don't want to commit recordings)
-# recordings/
-# *.rec
+recordings/
+*.csv
 
 # OS
 Thumbs.db
