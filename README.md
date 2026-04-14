@@ -394,6 +394,13 @@ Runs: 999999
 Gap: 1
 ```
 
+### ⏰ Scheduling & Smooth Movement
+
+- **Flexible scheduling:** When starting playback you can now provide a start time using either 24-hour (`13:00`) or 12-hour (`1:00 pm`) formats. You can also provide a full date/time like `2026-04-15 08:00`.
+- **Auto-start or manual start:** If you enter a schedule the script will wait and automatically start at that time (sleeps in short chunks so you can cancel with Ctrl+C). Leave the field blank to start manually with `Ctrl+Alt+P`.
+- **Re-prompt after re-recording:** If you stop playback to record a new/updated recording and choose to start a new playback, ClickCommander will ask for runs/gap and schedule again.
+- **Smooth, adaptive mouse movement:** Playback now detects the current cursor position and moves from wherever the mouse actually is to each recorded target instead of teleporting. Large moves start with a gentle nudge and then finish smoothly, and the player adapts if the mouse is moved between events.
+
 ### Recording During Playback
 
 Need to create a variation? Press `Ctrl+Alt+R` during playback:

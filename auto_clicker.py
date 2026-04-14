@@ -4,6 +4,8 @@ import keyboard
 import pyautogui
 import csv
 import os
+import math
+from datetime import datetime, timedelta
 from pynput import mouse, keyboard as pynkey
 
 pyautogui.FAILSAFE = False
@@ -70,8 +72,17 @@ def record_mouse():
         except AttributeError:
             events.append(("key_special", str(key), t))
 
+    def on_key_release(key):
+        if not recording:
+            return False
+        t = time.time() - start_time
+        try:
+            events.append(("key_release", key.char, t))
+        except AttributeError:
+            events.append(("key_release_special", str(key), t))
+
     mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
-    key_listener = pynkey.Listener(on_press=on_key_press)
+    key_listener = pynkey.Listener(on_press=on_key_press, on_release=on_key_release)
     
     mouse_listener.start()
     key_listener.start()
@@ -95,7 +106,29 @@ def save_recording_to_csv(name, events_list):
         writer = csv.writer(f)
         writer.writerow(["event_type", "param1", "param2", "param3", "param4", "timestamp"])
         for event in events_list:
-            writer.writerow(event)
+            # Pad all events to 6 fields for consistency
+            event_type = event[0]
+            if event_type in ["move", "drag"]:
+                # (type, x, y, timestamp) -> pad with empty strings
+                writer.writerow([event[0], event[1], event[2], "", "", event[3]])
+            elif event_type in ["press", "release"]:
+                # (type, x, y, button, timestamp) -> pad with one empty string
+                writer.writerow([event[0], event[1], event[2], event[3], "", event[4]])
+            elif event_type == "scroll":
+                # (type, x, y, amount, timestamp) -> pad with one empty string
+                writer.writerow([event[0], event[1], event[2], event[3], "", event[4]])
+            elif event_type == "key":
+                # (type, char, timestamp) -> pad with empty strings
+                writer.writerow([event[0], event[1], "", "", "", event[2]])
+            elif event_type == "key_special":
+                # (type, key_name, timestamp) -> pad with empty strings
+                writer.writerow([event[0], event[1], "", "", "", event[2]])
+            elif event_type == "key_release":
+                # (type, char, timestamp) -> pad with empty strings
+                writer.writerow([event[0], event[1], "", "", "", event[2]])
+            elif event_type == "key_release_special":
+                # (type, key_name, timestamp) -> pad with empty strings
+                writer.writerow([event[0], event[1], "", "", "", event[2]])
     print(f"[💾] Recording saved to {filepath}")
 
 
@@ -110,7 +143,9 @@ def load_recording_from_csv(name):
         reader = csv.reader(f)
         next(reader)  # Skip header
         for row in reader:
-            # Convert back to appropriate types
+            if not row or len(row) < 6:  # Skip invalid rows
+                continue
+            # All rows now have 6 fields, timestamp is always at index 5
             event_type = row[0]
             if event_type in ["move", "drag"]:
                 events_list.append((event_type, int(row[1]), int(row[2]), float(row[5])))
@@ -119,8 +154,12 @@ def load_recording_from_csv(name):
             elif event_type == "scroll":
                 events_list.append((event_type, int(row[1]), int(row[2]), int(row[3]), float(row[5])))
             elif event_type == "key":
-                events_list.append((event_type, row[1] if row[1] != "None" else None, float(row[5])))
+                events_list.append((event_type, row[1] if row[1] and row[1] != "" else None, float(row[5])))
             elif event_type == "key_special":
+                events_list.append((event_type, row[1], float(row[5])))
+            elif event_type == "key_release":
+                events_list.append((event_type, row[1] if row[1] and row[1] != "" else None, float(row[5])))
+            elif event_type == "key_release_special":
                 events_list.append((event_type, row[1], float(row[5])))
     
     print(f"[📂] Recording loaded from {filepath}")
@@ -134,6 +173,137 @@ def list_recordings():
     
     files = [f[:-4] for f in os.listdir(RECORDINGS_DIR) if f.endswith('.csv')]
     return files
+
+
+def parse_time_input(time_str):
+    """Parse a user-provided time string and return a datetime for scheduling.
+    Accepted examples: '08:00', '8:00 am', '2026-04-15 08:00', '08:00:00'.
+    If a date is not provided, the time is scheduled for today or tomorrow
+    (tomorrow if the time today already passed).
+    Returns None if parsing fails.
+    """
+    if not time_str:
+        return None
+    time_str = time_str.strip()
+    formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %I:%M:%S %p",
+        "%H:%M:%S",
+        "%H:%M",
+        "%I:%M %p",
+        "%I:%M:%S %p",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(time_str, fmt)
+            # If parsed value did not include a year, assign today's date
+            if "%Y" not in fmt:
+                now = datetime.now()
+                dt = dt.replace(year=now.year, month=now.month, day=now.day)
+                if dt <= now:
+                    dt = dt + timedelta(days=1)
+            return dt
+        except ValueError:
+            continue
+    return None
+
+
+def move_smooth_to(x, y, speed=800, min_duration=0.02, initial_slow_fraction=0.15):
+    """Move the mouse from current position to (x, y) smoothly.
+
+    - `speed` is pixels per second used to compute duration (larger = faster).
+    - If the distance is large, first move a small fraction slowly to avoid
+      abrupt jumps, then finish the move.
+    - Always reads the current mouse position, so it adapts if the user moved
+      the mouse between recorded events.
+    """
+    try:
+        cur_x, cur_y = pyautogui.position()
+    except Exception:
+        # Fallback: if position can't be read, just teleport
+        try:
+            pyautogui.moveTo(x, y)
+        except Exception:
+            pass
+        return
+
+    dx = x - cur_x
+    dy = y - cur_y
+    distance = math.hypot(dx, dy)
+    if distance <= 1:
+        return
+
+    # Duration based on speed (pixels/sec)
+    duration = max(min_duration, distance / float(max(1, speed)))
+
+    # If movement is large, do an initial slow nudge
+    try:
+        if distance > 30:
+            nx = int(cur_x + dx * initial_slow_fraction)
+            ny = int(cur_y + dy * initial_slow_fraction)
+            initial_duration = max(min_duration, (distance * initial_slow_fraction) / float(max(1, speed * 0.35)))
+            pyautogui.moveTo(nx, ny, duration=initial_duration)
+
+        pyautogui.moveTo(x, y, duration=duration)
+    except Exception:
+        try:
+            pyautogui.moveTo(x, y)
+        except Exception:
+            pass
+
+
+def get_playback_settings_and_wait():
+    """Prompt for repeat/gap/schedule and wait until start time or hotkey press.
+
+    Returns (repeat, gap).
+    """
+    repeat = int(input("\nHow many times should the auto clicker run? "))
+    gap_input = input("Gap between consecutive runs (seconds)? ").strip()
+    gap = 0 if gap_input == "" else float(gap_input)
+
+    schedule_input = input(
+        "\nSchedule start time (e.g., '08:00', '8:00 am', or '2026-04-15 08:00') (leave blank to start manually): "
+    ).strip()
+    scheduled_dt = None
+    if schedule_input:
+        scheduled_dt = parse_time_input(schedule_input)
+        if scheduled_dt is None:
+            print("[!] Could not parse time. Accepted formats: HH:MM, H:MM AM/PM, YYYY-MM-DD HH:MM")
+            scheduled_dt = None
+        else:
+            now = datetime.now()
+            delta = (scheduled_dt - now).total_seconds()
+            if delta > 0:
+                print(f"[⏳] Scheduled for {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')} (in {int(delta)}s).")
+                try:
+                    # Sleep in chunks so Ctrl+C can interrupt waiting
+                    while True:
+                        remaining = (scheduled_dt - datetime.now()).total_seconds()
+                        if remaining <= 0:
+                            break
+                        time.sleep(min(60, remaining))
+                except KeyboardInterrupt:
+                    print("\n[!] Waiting canceled by user. Start manually.")
+                    scheduled_dt = None
+            else:
+                print("[!] Target time appears to be in the past. Start manually.")
+                scheduled_dt = None
+
+    print("\n[Hotkeys]")
+    print("  Ctrl+Alt+P → Start/Pause playback")
+    print("  Ctrl+Alt+R → Record new/overwrite")
+
+    if scheduled_dt:
+        print("\n[▶] Scheduled time reached — starting playback automatically.")
+        time.sleep(0.5)
+    else:
+        print("\nPress Ctrl+Alt+P to START playback...")
+        keyboard.wait("ctrl+alt+p")
+        time.sleep(0.5)  # Longer debounce to ensure key is released
+
+    return repeat, gap
 
 
 def play_events(repeat, gap):
@@ -153,12 +323,13 @@ def play_events(repeat, gap):
             prev_time = t
 
             if event[0] == "move":
-                pyautogui.moveTo(event[1], event[2], duration=0)
+                move_smooth_to(event[1], event[2])
             elif event[0] == "drag":
-                pyautogui.moveTo(event[1], event[2], duration=0)
+                # Keep mouse button state from press/release events; move will drag
+                move_smooth_to(event[1], event[2])
             elif event[0] == "press":
                 btn = event[3]
-                pyautogui.moveTo(event[1], event[2], duration=0)
+                move_smooth_to(event[1], event[2])
                 if btn == "left":
                     pyautogui.mouseDown(button="left")
                 elif btn == "right":
@@ -167,7 +338,7 @@ def play_events(repeat, gap):
                     pyautogui.mouseDown(button="middle")
             elif event[0] == "release":
                 btn = event[3]
-                pyautogui.moveTo(event[1], event[2], duration=0)
+                move_smooth_to(event[1], event[2])
                 if btn == "left":
                     pyautogui.mouseUp(button="left")
                 elif btn == "right":
@@ -179,13 +350,22 @@ def play_events(repeat, gap):
                 pyautogui.scroll(scroll_amount)
             elif event[0] == "key":
                 if event[1] is not None:
-                    pyautogui.press(event[1])
+                    pyautogui.keyDown(event[1])
             elif event[0] == "key_special":
                 key_name = event[1].replace("Key.", "").lower()
                 try:
-                    pyautogui.press(key_name)
+                    pyautogui.keyDown(key_name)
                 except:
-                    pass  # Skip keys that pyautogui doesn't recognize
+                    pass
+            elif event[0] == "key_release":
+                if event[1] is not None:
+                    pyautogui.keyUp(event[1])
+            elif event[0] == "key_release_special":
+                key_name = event[1].replace("Key.", "").lower()
+                try:
+                    pyautogui.keyUp(key_name)
+                except:
+                    pass
 
         if playing and i < repeat - 1:
             time.sleep(gap)
@@ -263,15 +443,7 @@ def main():
         
         save_recording_to_csv(current_recording_name, events)
 
-    repeat = int(input("\nHow many times should the auto clicker run? "))
-    gap = float(input("Gap between consecutive runs (seconds)? "))
-
-    print("\n[Hotkeys]")
-    print("  Ctrl+Alt+P → Start/Pause playback")
-    print("  Ctrl+Alt+R → Record new/overwrite")
-    print("\nPress Ctrl+Alt+P to START playback...")
-    keyboard.wait("ctrl+alt+p")
-    time.sleep(0.3)  # Debounce
+    repeat, gap = get_playback_settings_and_wait()
     
     completed_runs = 0
     while completed_runs < repeat:
@@ -280,8 +452,8 @@ def main():
         play_thread = threading.Thread(target=play_events, args=(remaining, gap), daemon=True)
         play_thread.start()
 
-        last_press_p = 0
-        last_press_r = 0
+        last_press_p = time.time()  # Initialize with current time to prevent immediate trigger
+        last_press_r = time.time()
         while play_thread.is_alive():
             if keyboard.is_pressed("ctrl+alt+p"):
                 current_time = time.time()
@@ -327,12 +499,8 @@ def main():
                         continue_choice = input("Your choice (1/2): ").strip()
                         
                         if continue_choice == "2":
-                            repeat = int(input("\nHow many times should the auto clicker run? "))
-                            gap = float(input("Gap between consecutive runs (seconds)? "))
+                            repeat, gap = get_playback_settings_and_wait()
                             completed_runs = 0
-                            print("\nPress Ctrl+Alt+P to START playback...")
-                            keyboard.wait("ctrl+alt+p")
-                            time.sleep(0.3)
                             continue
                     break
             time.sleep(0.05)
@@ -344,8 +512,58 @@ def main():
         
         if not playing and completed_runs < repeat:
             print(f"\nPress Ctrl+Alt+P to RESUME playback... ({repeat - completed_runs} runs left)")
-            keyboard.wait("ctrl+alt+p")
-            time.sleep(0.3)  # Debounce
+            print("Or press Ctrl+Alt+R to record new/overwrite")
+            
+            # Wait for either P or R
+            while True:
+                if keyboard.is_pressed("ctrl+alt+p"):
+                    time.sleep(0.5)
+                    break
+                elif keyboard.is_pressed("ctrl+alt+r"):
+                    time.sleep(0.5)
+                    
+                    print("\n[Options]")
+                    print("  1. Record new (keep current)")
+                    print("  2. Overwrite current recording")
+                    rec_choice = input("Your choice (1/2): ").strip()
+                    
+                    if rec_choice == "2":
+                        new_name = current_recording_name
+                    else:
+                        new_name = input("Enter name for new recording: ").strip()
+                        if not new_name:
+                            new_name = f"recording_{int(time.time())}"
+                    
+                    print(f"\nRecording '{new_name}'... (press Ctrl+Alt+R to stop)")
+                    record_thread = threading.Thread(target=record_mouse, daemon=True)
+                    record_thread.start()
+                    keyboard.wait("ctrl+alt+r")
+                    recording = False
+                    record_thread.join()
+                    
+                    if events:
+                        save_recording_to_csv(new_name, events)
+                        current_recording_name = new_name
+                        print("\n[Options]")
+                        print("  1. Continue with old playback")
+                        print("  2. Start new playback with new recording")
+                        continue_choice = input("Your choice (1/2): ").strip()
+                        
+                        if continue_choice == "2":
+                            repeat, gap = get_playback_settings_and_wait()
+                            completed_runs = 0
+                            break
+                        else:
+                            # Continue with old playback
+                            print("\nPress Ctrl+Alt+P to RESUME playback...")
+                            keyboard.wait("ctrl+alt+p")
+                            time.sleep(0.5)
+                            break
+                    else:
+                        # No events recorded, go back to waiting
+                        print(f"\nPress Ctrl+Alt+P to RESUME playback... ({repeat - completed_runs} runs left)")
+                        continue
+                time.sleep(0.1)
         else:
             break
 
