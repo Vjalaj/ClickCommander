@@ -255,45 +255,61 @@ def move_smooth_to(x, y, speed=800, min_duration=0.02, initial_slow_fraction=0.1
 
 
 def get_playback_settings_and_wait():
-    """Prompt for repeat/gap/schedule and wait until start time or hotkey press.
+    """Prompt for repeat/gap/schedule/start-delay/stop-after and wait until start time or hotkey press.
 
-    Returns (repeat, gap).
+    Returns (repeat, gap, stop_after_seconds).
     """
     repeat = int(input("\nHow many times should the auto clicker run? "))
     gap_input = input("Gap between consecutive runs (seconds)? ").strip()
     gap = 0 if gap_input == "" else float(gap_input)
 
     schedule_input = input(
-        "\nSchedule start time (e.g., '08:00', '8:00 am', or '2026-04-15 08:00') (leave blank to start manually): "
+        "\nSchedule start time (e.g., '08:00', '8:00 am', or '2026-04-15 08:00') (leave blank to use start-delay or start manually): "
     ).strip()
+
+    start_delay_input = input("Start after how many seconds? (leave blank to ignore): ").strip()
+    stop_after_input = input("Stop after how many seconds? (leave blank to stop by repeat): ").strip()
+
     scheduled_dt = None
     if schedule_input:
         scheduled_dt = parse_time_input(schedule_input)
         if scheduled_dt is None:
             print("[!] Could not parse time. Accepted formats: HH:MM, H:MM AM/PM, YYYY-MM-DD HH:MM")
             scheduled_dt = None
-        else:
-            now = datetime.now()
-            delta = (scheduled_dt - now).total_seconds()
-            if delta > 0:
-                print(f"[⏳] Scheduled for {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')} (in {int(delta)}s).")
-                try:
-                    # Sleep in chunks so Ctrl+C can interrupt waiting
-                    while True:
-                        remaining = (scheduled_dt - datetime.now()).total_seconds()
-                        if remaining <= 0:
-                            break
-                        time.sleep(min(60, remaining))
-                except KeyboardInterrupt:
-                    print("\n[!] Waiting canceled by user. Start manually.")
-                    scheduled_dt = None
+    elif start_delay_input:
+        try:
+            sdelay = float(start_delay_input)
+            if sdelay > 0:
+                scheduled_dt = datetime.now() + timedelta(seconds=sdelay)
+                print(f"[⏳] Will start in {int(sdelay)} seconds at {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')}.")
             else:
-                print("[!] Target time appears to be in the past. Start manually.")
                 scheduled_dt = None
+        except Exception:
+            print("[!] Invalid start delay. Start manually.")
+            scheduled_dt = None
 
     print("\n[Hotkeys]")
     print("  Ctrl+Alt+P → Start/Pause playback")
     print("  Ctrl+Alt+R → Record new/overwrite")
+
+    if scheduled_dt:
+        now = datetime.now()
+        delta = (scheduled_dt - now).total_seconds()
+        if delta > 0:
+            print(f"[⏳] Scheduled for {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')} (in {int(delta)}s).")
+            try:
+                # Sleep in chunks so Ctrl+C can interrupt waiting
+                while True:
+                    remaining = (scheduled_dt - datetime.now()).total_seconds()
+                    if remaining <= 0:
+                        break
+                    time.sleep(min(60, remaining))
+            except KeyboardInterrupt:
+                print("\n[!] Waiting canceled by user. Start manually.")
+                scheduled_dt = None
+        else:
+            print("[!] Target time appears to be in the past. Start manually.")
+            scheduled_dt = None
 
     if scheduled_dt:
         print("\n[▶] Scheduled time reached — starting playback automatically.")
@@ -303,7 +319,16 @@ def get_playback_settings_and_wait():
         keyboard.wait("ctrl+alt+p")
         time.sleep(0.5)  # Longer debounce to ensure key is released
 
-    return repeat, gap
+    stop_after_seconds = None
+    if stop_after_input:
+        try:
+            stop_after_seconds = float(stop_after_input)
+            if stop_after_seconds <= 0:
+                stop_after_seconds = None
+        except Exception:
+            stop_after_seconds = None
+
+    return repeat, gap, stop_after_seconds
 
 
 def play_events(repeat, gap):
@@ -443,18 +468,30 @@ def main():
         
         save_recording_to_csv(current_recording_name, events)
 
-    repeat, gap = get_playback_settings_and_wait()
-    
+    repeat, gap, stop_after = get_playback_settings_and_wait()
+
     completed_runs = 0
+    timed_out = False
     while completed_runs < repeat:
         remaining = repeat - completed_runs
         print(f"[▶] Playing... {remaining} runs remaining (Ctrl+Alt+P=pause, Ctrl+Alt+R=new recording)")
         play_thread = threading.Thread(target=play_events, args=(remaining, gap), daemon=True)
         play_thread.start()
 
+        # Track playback start time for optional automatic stop-after timeout
+        play_start_time = time.time()
+        end_time = play_start_time + stop_after if (stop_after is not None) else None
+
         last_press_p = time.time()  # Initialize with current time to prevent immediate trigger
         last_press_r = time.time()
         while play_thread.is_alive():
+            # Check for automatic timeout
+            if end_time is not None and time.time() >= end_time:
+                playing = False
+                timed_out = True
+                print("\n[⏱] Stop-after timeout reached — stopping playback.")
+                time.sleep(0.3)
+                break
             if keyboard.is_pressed("ctrl+alt+p"):
                 current_time = time.time()
                 if current_time - last_press_p > 0.5:  # Debounce 500ms
@@ -506,7 +543,12 @@ def main():
             time.sleep(0.05)
 
         play_thread.join()
-        
+
+        if timed_out:
+            # stop completely if we hit the stop-after timeout
+            completed_runs = repeat
+            break
+
         if play_thread is not None:
             completed_runs = repeat - remaining + (0 if playing else 0)
         
