@@ -294,16 +294,28 @@ def get_playback_settings_and_wait():
 
     if scheduled_dt:
         now = datetime.now()
-        delta = (scheduled_dt - now).total_seconds()
-        if delta > 0:
-            print(f"[⏳] Scheduled for {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')} (in {int(delta)}s).")
+        remaining = (scheduled_dt - now).total_seconds()
+        if remaining > 0:
             try:
-                # Sleep in chunks so Ctrl+C can interrupt waiting
+                # Show a live countdown (update every second)
                 while True:
                     remaining = (scheduled_dt - datetime.now()).total_seconds()
                     if remaining <= 0:
+                        # Clear the line then break
+                        print("\r" + " " * 120, end="\r", flush=True)
                         break
-                    time.sleep(min(60, remaining))
+                    secs = int(remaining)
+                    hrs, rem = divmod(secs, 3600)
+                    mins, secs = divmod(rem, 60)
+                    if hrs > 0:
+                        time_str = f"{hrs}h {mins}m {secs}s"
+                    elif mins > 0:
+                        time_str = f"{mins}m {secs}s"
+                    else:
+                        time_str = f"{secs}s"
+                    print(f"\r[⏳] Scheduled for {scheduled_dt.strftime('%Y-%m-%d %H:%M:%S')} (in {time_str})", end="", flush=True)
+                    time.sleep(1)
+                print()
             except KeyboardInterrupt:
                 print("\n[!] Waiting canceled by user. Start manually.")
                 scheduled_dt = None
@@ -536,7 +548,7 @@ def main():
                         continue_choice = input("Your choice (1/2): ").strip()
                         
                         if continue_choice == "2":
-                            repeat, gap = get_playback_settings_and_wait()
+                            repeat, gap, stop_after = get_playback_settings_and_wait()
                             completed_runs = 0
                             continue
                     break
@@ -592,7 +604,7 @@ def main():
                         continue_choice = input("Your choice (1/2): ").strip()
                         
                         if continue_choice == "2":
-                            repeat, gap = get_playback_settings_and_wait()
+                            repeat, gap, stop_after = get_playback_settings_and_wait()
                             completed_runs = 0
                             break
                         else:
